@@ -219,5 +219,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 models/*.pkl
+!models/model_deploy.pkl
 data/*.csv
 data/*.zip

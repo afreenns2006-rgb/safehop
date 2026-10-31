@@ -18,7 +18,10 @@ def _load_model(model_path):
 
 def predict_url(url, model_path=None):
     """Predict phishing probability and explain rule-based indicators."""
-    artifact = _load_model(str(Path(model_path or PROJECT_ROOT / "models" / "model.pkl").resolve()))
+    if model_path is None:
+        deployment_model = PROJECT_ROOT / "models" / "model_deploy.pkl"
+        model_path = deployment_model if deployment_model.is_file() else PROJECT_ROOT / "models" / "model.pkl"
+    artifact = _load_model(str(Path(model_path).resolve()))
     features = extract_features(url)
     model = artifact["model"]
     row = pd.DataFrame([[features[name] for name in FEATURE_NAMES]], columns=FEATURE_NAMES)

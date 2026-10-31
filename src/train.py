@@ -6,22 +6,20 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import pandas as pd
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_score, recall_score, roc_auc_score
-from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeClassifier
 import joblib
 
 try:
-    from src.features import FEATURE_NAMES, extract_features
+    from src.features import FEATURE_NAMES
+    from src.training_data import load_training_data, make_feature_matrix, stratified_split
 except ModuleNotFoundError:  # Support `python src/train.py` from the project root.
-    from features import FEATURE_NAMES, extract_features
-
-LABELS = {"benign": 0, "legitimate": 0, "good": 0, "safe": 0, "0": 0, "phishing": 1, "malicious": 1, "bad": 1, "unsafe": 1, "1": 1}
+    from features import FEATURE_NAMES
+    from training_data import load_training_data, make_feature_matrix, stratified_split
 
 
 def main():
@@ -31,18 +29,12 @@ def main():
     parser.add_argument("--label-col", default="label")
     parser.add_argument("--out", default="models/model.pkl")
     args = parser.parse_args()
-    data = pd.read_csv(args.data)
-    data = data.dropna(subset=[args.url_col, args.label_col]).drop_duplicates(subset=[args.url_col]).copy()
-    data["_target"] = data[args.label_col].astype(str).str.strip().str.lower().map(LABELS)
-    data = data.dropna(subset=["_target"])
-    data["_target"] = data["_target"].astype(int)
-    counts = data["_target"].value_counts().reindex([0, 1], fill_value=0)
+    urls, y, counts = load_training_data(args.data, args.url_col, args.label_col)
     print(f"Class counts: benign={counts[0]}, phishing={counts[1]}")
     if counts.min() < 2:
         parser.error("Need at least two rows in each supported class for a stratified split")
-    X = pd.DataFrame.from_records(data[args.url_col].astype(str).map(extract_features), columns=FEATURE_NAMES)
-    y = data["_target"]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    X = make_feature_matrix(urls)
+    X_train, X_test, y_train, y_test = stratified_split(X, y)
     models = {
         "Logistic Regression": make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000, random_state=42)),
         "Decision Tree": DecisionTreeClassifier(max_depth=12, random_state=42),
