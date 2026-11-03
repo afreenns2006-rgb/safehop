@@ -6,6 +6,7 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import pandas as pd
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_score, recall_score, roc_auc_score
@@ -15,11 +16,9 @@ from sklearn.tree import DecisionTreeClassifier
 import joblib
 
 try:
-    from src.features import FEATURE_NAMES
-    from src.training_data import load_training_data, make_feature_matrix, stratified_split
+    from src.training_data import load_training_data, make_feature_matrix, select_training_features, stratified_split
 except ModuleNotFoundError:  # Support `python src/train.py` from the project root.
-    from features import FEATURE_NAMES
-    from training_data import load_training_data, make_feature_matrix, stratified_split
+    from training_data import load_training_data, make_feature_matrix, select_training_features, stratified_split
 
 
 def main():
@@ -33,7 +32,9 @@ def main():
     print(f"Class counts: benign={counts[0]}, phishing={counts[1]}")
     if counts.min() < 2:
         parser.error("Need at least two rows in each supported class for a stratified split")
-    X = make_feature_matrix(urls)
+    full_X = make_feature_matrix(urls)
+    features = select_training_features(full_X, y)
+    X = full_X[features]
     X_train, X_test, y_train, y_test = stratified_split(X, y)
     models = {
         "Logistic Regression": make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000, random_state=42)),
@@ -56,7 +57,7 @@ def main():
     pd.DataFrame(results).to_csv(out.parent / "results.csv", index=False)
     best_name = max(results, key=lambda item: item["f1"])["model"]
     best, matrix = fitted[best_name]
-    joblib.dump({"model": best, "features": FEATURE_NAMES, "name": best_name}, out)
+    joblib.dump({"model": best, "features": features, "name": best_name}, out)
     fig, ax = plt.subplots()
     ax.imshow(matrix, cmap="Blues")
     ax.set(xticks=[0, 1], yticks=[0, 1], xticklabels=["Benign", "Phishing"], yticklabels=["Benign", "Phishing"], xlabel="Predicted", ylabel="Actual", title=f"Confusion Matrix: {best_name}")
@@ -73,7 +74,7 @@ def main():
         importance = abs(best[-1].coef_[0])
     order = __import__("numpy").argsort(importance)
     fig, ax = plt.subplots(figsize=(9, 7))
-    ax.barh([FEATURE_NAMES[i] for i in order], importance[order])
+    ax.barh([features[i] for i in order], importance[order])
     ax.set(title=f"Feature Importance: {best_name}", xlabel="Importance")
     fig.tight_layout()
     fig.savefig(out.parent / "feature_importance.png", dpi=150)

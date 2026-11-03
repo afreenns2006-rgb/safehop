@@ -47,7 +47,8 @@ def predict_url(url, model_path=None):
         artifact = _load_model(str(path))
         features = extract_features(url)
         model = artifact["model"]
-        row = pd.DataFrame([[features[name] for name in FEATURE_NAMES]], columns=FEATURE_NAMES)
+        model_features = artifact.get("features", FEATURE_NAMES)
+        row = pd.DataFrame([[features[name] for name in model_features]], columns=model_features)
         score = round(float(model.predict_proba(row)[0][1]) * 100, 1)
         level, label = ("low", "Low Risk - Likely legitimate") if score < 35 else (("medium", "Medium Risk - Suspicious, proceed with caution") if score < 65 else ("high", "High Risk - Potential phishing URL"))
         reasons = []

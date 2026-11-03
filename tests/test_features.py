@@ -55,3 +55,20 @@ def test_malformed_and_unusual_urls_always_return_all_features(url):
     result = extract_features(url)
     assert list(result) == FEATURE_NAMES
     assert len(result) == 25
+
+
+def test_canonical_features_ignore_scheme_www_and_trailing_slash():
+    variants = [
+        "wikipedia.org",
+        "https://wikipedia.org",
+        "https://www.wikipedia.org",
+        "https://www.wikipedia.org/",
+    ]
+    feature_rows = [extract_features(url) for url in variants]
+    canonical_names = [name for name in FEATURE_NAMES if name != "has_https"]
+    assert all(
+        {name: row[name] for name in canonical_names}
+        == {name: feature_rows[0][name] for name in canonical_names}
+        for row in feature_rows[1:]
+    )
+    assert [row["has_https"] for row in feature_rows] == [0, 1, 1, 1]

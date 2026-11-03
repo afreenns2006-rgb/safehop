@@ -30,6 +30,32 @@ def make_feature_matrix(urls):
     return pd.DataFrame.from_records(urls.map(extract_features), columns=FEATURE_NAMES)
 
 
+def select_training_features(X, y):
+    """Print class means and remove strongly class-skewed format features."""
+    targets = y.to_numpy()
+    means = {
+        label: X.loc[targets == label, ["has_https", "has_port"]].mean()
+        for label in (0, 1)
+    }
+    print(
+        "Feature class means (has_https, has_port): "
+        f"benign=({means[0]['has_https']:.4f}, {means[0]['has_port']:.4f}), "
+        f"phishing=({means[1]['has_https']:.4f}, {means[1]['has_port']:.4f})"
+    )
+    dropped = []
+    for name in ("has_https", "has_port"):
+        class_rates = sorted((means[0][name], means[1][name]))
+        difference = class_rates[1] - class_rates[0]
+        strong_ratio = class_rates[0] == 0 or class_rates[1] >= 5 * class_rates[0]
+        if difference >= 0.05 and strong_ratio:
+            dropped.append(name)
+    if dropped:
+        print("Dropping strongly class-skewed features: " + ", ".join(dropped))
+    else:
+        print("No strongly class-skewed features dropped.")
+    return [name for name in FEATURE_NAMES if name not in dropped]
+
+
 def stratified_split(X, y):
     """Return the consistent random 80/20 stratified split."""
     return train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)

@@ -60,9 +60,28 @@ def _subdomain_count(host):
     return max(0, len(labels) - suffix_len - 1)
 
 
+def _canonicalize_url(value):
+    """Remove common presentation-only URL differences before feature counts."""
+    canonical = re.sub(r"^[A-Za-z][A-Za-z0-9+.-]*://", "", value, count=1)
+    boundary = min((canonical.find(char) for char in "/?#" if char in canonical), default=len(canonical))
+    authority, remainder = canonical[:boundary], canonical[boundary:]
+    userinfo, separator, host_port = authority.rpartition("@")
+    host_port = host_port.lower()
+    if host_port.startswith("www."):
+        host_port = host_port[4:]
+    authority = (userinfo + separator if separator else "") + host_port
+    canonical = authority + remainder
+    if canonical.endswith("/"):
+        canonical = canonical[:-1]
+    return canonical
+
+
 def extract_features(url):
-    """Return exactly the 25 ordered numeric URL features."""
-    value, parsed, host, port = _parse(url)
+    """Return 25 ordered numeric features, canonicalizing formatting artifacts."""
+    original = str(url or "")
+    original_parsed = _parse(original)[1]
+    value = _canonicalize_url(original)
+    _, parsed, host, port = _parse(value)
     lowered = value.lower()
     try:
         ipaddress.ip_address(host)
@@ -82,7 +101,7 @@ def extract_features(url):
         "num_digits": digits, "digit_ratio": digits / len(value) if value else 0.0,
         "num_subdomains": _subdomain_count(host), "has_ip": has_ip, "tld_suspicious": int(tld in SUSPICIOUS_TLDS),
         "is_shortener": int(host in SHORTENERS), "has_punycode": int("xn--" in host),
-        "has_https": int(parsed.scheme.lower() == "https"), "has_port": int(port is not None),
+        "has_https": int(original_parsed.scheme.lower() == "https"), "has_port": int(port is not None),
         "keyword_count": sum(bool(re.search(r"(?<![a-z])" + re.escape(word) + r"(?![a-z])", lowered)) for word in KEYWORDS),
         "entropy": entropy, "path_depth": sum(bool(part) for part in parsed.path.split("/")),
     }
